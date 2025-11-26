@@ -177,7 +177,12 @@ class ParticleFilter:
 
 
 def render_particles(
-    env, pf: ParticleFilter, save_path=None, figsize=(6, 6), show=False
+    env,
+    pf: ParticleFilter,
+    save_path=None,
+    figsize=(6, 6),
+    show=False,
+    show_visits=False,
 ):
     """Render environment map with particle overlay and optional save.
 
@@ -233,6 +238,22 @@ def render_particles(
     # robot true state overlay (if available)
     if hasattr(env, "x") and env.x is not None:
         ax.scatter([env.x], [env.y], c="green", s=120, marker="o", edgecolors="k")
+
+    # visits overlay: small text in blue (optional)
+    if show_visits and hasattr(env, "visit_counts"):
+        for yy in range(env.H):
+            for xx in range(env.W):
+                v = int(env.visit_counts[yy, xx])
+                if v > 0:
+                    ax.text(
+                        xx,
+                        yy,
+                        str(min(9, v)),
+                        color="blue",
+                        ha="center",
+                        va="center",
+                        fontsize=8,
+                    )
 
     ax.set_xticks(np.arange(-0.5, env.W, 1.0))
     ax.set_yticks(np.arange(-0.5, env.H, 1.0))

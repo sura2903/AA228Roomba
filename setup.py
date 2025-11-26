@@ -407,7 +407,15 @@ class RoombaSoftPOMDPEnv(gym.Env):
         self.steps += 1
 
         # termination: coverage or max_steps
-        explored = float(np.sum(self.visit_counts > 0)) / float(self.W * self.H)
+        # Compute explored fraction relative to visitable cells (non-hard obstacles).
+        # This avoids requiring visits to permanently blocked hard cells.
+        visit_mask = (self.visit_counts > 0)
+        visitable_mask = (self.map != 1)
+        total_visitable = int(np.sum(visitable_mask))
+        if total_visitable > 0:
+            explored = float(np.sum(visit_mask & visitable_mask)) / float(total_visitable)
+        else:
+            explored = 1.0
         done = (explored >= self.coverage_goal) or (self.steps >= self.max_steps)
 
         # info: include true hidden state for debugging only (agent should not use it)
@@ -626,14 +634,19 @@ class RoombaSoftPOMDPEnv(gym.Env):
 # minimal demo when run directly
 if __name__ == "__main__":
     env = RoombaSoftPOMDPEnv(
-        width=20, height=20, exit_mode="reset", seed=0, random_obstacles=True
+        width=20,
+        height=20,
+        exit_mode="reset",
+        seed=0,
+        random_obstacles=True,
+        max_steps=20000,
     )
     obs = env.reset()
     print("initial obs", obs)
     total = 0.0
     # Record frames every `save_every` steps and stitch into a video afterwards.
-    save_every = 10
-    total_steps = 2000
+    save_every = 50
+    total_steps = 20000
     save_dir = os.path.join(os.getcwd(), "render_frames", "run1")
     os.makedirs(save_dir, exist_ok=True)
     prefix = "run1"
@@ -653,6 +666,12 @@ if __name__ == "__main__":
             obs, r, done, info = step_ret
 
         total += r
+
+        # if the environment reports explored fraction, terminate when coverage goal reached
+        explored = info.get("explored_fraction") if isinstance(info, dict) else None
+        if explored is not None and explored >= env.coverage_goal:
+            print(f"coverage goal reached at step {t}: explored={explored:.4f}")
+            break
 
         # save frame off-screen (does not open a GUI window)
         if t % save_every == 0:

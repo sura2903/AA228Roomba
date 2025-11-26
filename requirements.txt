@@ -1,5 +1,7 @@
-gym
 numpy
+gymnasium
+gym
 scipy
 matplotlib
 scikit-learn
+imageio[ffmpeg]

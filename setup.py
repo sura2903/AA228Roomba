@@ -3,9 +3,14 @@
 # Grid encoding: 0 = free, 1 = hard obstacle, 2 = soft region
 # Theta encoding: 0=N, 1=E, 2=S, 3=W
 
-import gym
+try:
+    import gymnasium as gym
+except Exception:
+    import gym
+
+# Use the `spaces` object from whichever gym package was imported (gymnasium or gym)
+spaces = gym.spaces
 import numpy as np
-from gym import spaces
 import random
 import matplotlib.pyplot as plt
 from matplotlib import colors
@@ -64,6 +69,9 @@ class RoombaSoftPOMDPEnv(gym.Env):
         if seed is not None:
             np.random.seed(seed)
             random.seed(seed)
+
+        # detect whether we're running under Gymnasium (newer API)
+        self._is_gymnasium = getattr(gym, "__name__", "") == "gymnasium"
 
         self.W = width
         self.H = height
@@ -345,7 +353,12 @@ class RoombaSoftPOMDPEnv(gym.Env):
     # Gym API: reset
     # ---------------------
     def reset(self, seed=None, options=None):
-        super().reset(seed=seed)
+        # call parent reset (Gym/Gymnasium compatibility)
+        try:
+            parent_ret = super().reset(seed=seed)
+        except TypeError:
+            # older gym may not accept seed as keyword
+            parent_ret = super().reset(seed)
         free_cells = np.argwhere(self.map == 0)
         if len(free_cells) == 0:
             # fallback
@@ -360,6 +373,9 @@ class RoombaSoftPOMDPEnv(gym.Env):
         self.visit_counts[:] = 0
         self.visit_counts[self.y, self.x] = 1
         self.steps = 0
+        if self._is_gymnasium:
+            # Gymnasium expects (obs, info)
+            return self.observe(), {}
         return self.observe()
 
     # ---------------------
@@ -402,6 +418,11 @@ class RoombaSoftPOMDPEnv(gym.Env):
         }
 
         obs = self.observe()
+        if self._is_gymnasium:
+            # Gymnasium step API: obs, reward, terminated, truncated, info
+            terminated = bool(done)
+            truncated = False
+            return obs, float(reward), terminated, truncated, info
         return obs, float(reward), bool(done), info
 
     # ---------------------
@@ -620,7 +641,17 @@ if __name__ == "__main__":
     for t in range(total_steps):
         # random policy demo: 50% move forward, 10% back, 20% left turn, 20% right turn
         a = np.random.choice([0, 1, 2, 3], p=[0.5, 0.1, 0.2, 0.2])
-        obs, r, done, info = env.step(a)
+        step_ret = env.step(a)
+
+        # Unpack step return depending on Gym vs Gymnasium API
+        if getattr(env, "_is_gymnasium", False):
+            # Gymnasium: obs, reward, terminated, truncated, info
+            obs, r, terminated, truncated, info = step_ret
+            done = bool(terminated or truncated)
+        else:
+            # Gym: obs, reward, done, info
+            obs, r, done, info = step_ret
+
         total += r
 
         # save frame off-screen (does not open a GUI window)

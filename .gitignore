@@ -5,6 +5,7 @@ __pycache__/
 
 # C extensions
 *.so
+*.exe
 
 # Distribution / packaging
 .Python
@@ -205,3 +206,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Ignore generated visualization frames and videos
+render_frames/
+*.png
+*.mp4

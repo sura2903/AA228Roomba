@@ -7,12 +7,19 @@ import gym
 import numpy as np
 from gym import spaces
 import random
+import matplotlib.pyplot as plt
+from matplotlib import colors
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+import imageio.v2 as imageio
+import os
+import time
 
 # Direction utilities: 0=N,1=E,2=S,3=W
 DIR2DELTA = {0: (0, 1), 1: (1, 0), 2: (0, -1), 3: (-1, 0)}
 LEFT_OF = {0: 3, 1: 0, 2: 1, 3: 2}
 RIGHT_OF = {0: 1, 1: 2, 2: 3, 3: 0}
 REVERSE_DIR = {0: 2, 1: 3, 2: 0, 3: 1}
+
 
 class RoombaSoftPOMDPEnv(gym.Env):
     """
@@ -35,12 +42,12 @@ class RoombaSoftPOMDPEnv(gym.Env):
         p_hard=0.05,
         p_soft=0.1,
         random_obstacles=True,
-        exit_mode="reset",        # "reset" or "decrement"
+        exit_mode="reset",  # "reset" or "decrement"
         K=3,
         p_intended=0.7,
         p_adj=0.1,
         p_stay=0.1,
-        p_worsen=0.2,             # used if you want stochastic worsen
+        p_worsen=0.2,  # used if you want stochastic worsen
         p_exit_base=0.9,
         p_exit_alpha=0.5,
         obs_sigma=0.3,
@@ -89,8 +96,8 @@ class RoombaSoftPOMDPEnv(gym.Env):
         # internal state
         self.x = None
         self.y = None
-        self.theta = None    # 0..3
-        self.d = -1          # -1 means no stored entry direction
+        self.theta = None  # 0..3
+        self.d = -1  # -1 means no stored entry direction
         self.k = 0
 
         # transition params
@@ -128,7 +135,9 @@ class RoombaSoftPOMDPEnv(gym.Env):
         # observation: [x_obs, y_obs, theta_obs] continuous
         self.observation_space = spaces.Box(
             low=np.array([0.0, 0.0, 0.0], dtype=np.float32),
-            high=np.array([float(self.W - 1), float(self.H - 1), 3.0], dtype=np.float32),
+            high=np.array(
+                [float(self.W - 1), float(self.H - 1), 3.0], dtype=np.float32
+            ),
             dtype=np.float32,
         )
 
@@ -194,9 +203,9 @@ class RoombaSoftPOMDPEnv(gym.Env):
             return (nx, ny, ntheta), (nd, nk)
 
         # Movement actions: forward or backward relative to heading
-        if action == 0:   # forward -> intended absolute direction = theta
+        if action == 0:  # forward -> intended absolute direction = theta
             intended_abs = theta
-        elif action == 1: # backward -> intended absolute direction = theta + 2
+        elif action == 1:  # backward -> intended absolute direction = theta + 2
             intended_abs = (theta + 2) % 4
         else:
             # invalid action
@@ -361,7 +370,9 @@ class RoombaSoftPOMDPEnv(gym.Env):
         prev_state = (self.x, self.y, self.theta)
         prev_hidden = (self.d, self.k)
 
-        (nx, ny, ntheta), (nd, nk) = self.sample_transition(prev_state, prev_hidden, action)
+        (nx, ny, ntheta), (nd, nk) = self.sample_transition(
+            prev_state, prev_hidden, action
+        )
 
         # update true state
         self.x, self.y, self.theta = int(nx), int(ny), int(ntheta) % 4
@@ -373,7 +384,9 @@ class RoombaSoftPOMDPEnv(gym.Env):
         # compute reward
         next_state = (self.x, self.y, self.theta)
         next_hidden = (self.d, self.k)
-        reward = self.reward_model(prev_state, prev_hidden, action, next_state, next_hidden)
+        reward = self.reward_model(
+            prev_state, prev_hidden, action, next_state, next_hidden
+        )
 
         self.steps += 1
 
@@ -394,43 +407,239 @@ class RoombaSoftPOMDPEnv(gym.Env):
     # ---------------------
     # Render (ASCII)
     # ---------------------
-    def render(self, mode="human"):
-        # print top-down
-        grid = np.full((self.H, self.W), ".", dtype=object)
-        # hard obstacles
-        ys, xs = np.where(self.map == 1)
-        for yy, xx in zip(ys, xs):
-            grid[yy, xx] = "#"
-        # soft region
-        ys, xs = np.where(self.map == 2)
-        for yy, xx in zip(ys, xs):
-            grid[yy, xx] = "$"
-        # visits
-        for yy in range(self.H):
-            for xx in range(self.W):
-                if self.visit_counts[yy, xx] > 0 and grid[yy, xx] == ".":
-                    grid[yy, xx] = str(min(9, self.visit_counts[yy, xx]))
-        # robot marker
-        if 0 <= self.x < self.W and 0 <= self.y < self.H:
-            grid[self.y, self.x] = "R" if self.k == 0 else ("r" if self.k == 1 else "X")
-        for row in grid[::-1]:
-            print("".join(row))
-        print(f"pos={(self.x,self.y)} theta={self.theta} d={self.d} k={self.k} steps={self.steps}")
+    def render(
+        self,
+        mode="human",
+        save=False,
+        save_dir=None,
+        prefix=None,
+        figsize=(6, 6),
+        show_visits=True,
+    ):
+        """
+        Primary renderer: delegates to the matplotlib renderer.
+
+        - `mode`: same as `render_matplotlib` (`"human"` or `"rgb_array").
+        - `save`: if True, also save the frame to `save_dir` using `save_frame`.
+        - `save_dir`: directory to save frames (defaults to `./render_frames`).
+        - `prefix`: filename prefix for saved frames.
+        - `figsize`, `show_visits`: passed to `render_matplotlib`.
+        """
+        # If saving, render off-screen and save without opening a GUI window.
+        if save:
+            out_path = self.save_frame(save_dir=save_dir, prefix=prefix)
+            # if user requested an array, provide it; otherwise return saved path
+            if mode == "rgb_array":
+                return self.render_matplotlib(
+                    mode="rgb_array",
+                    figsize=figsize,
+                    show_visits=show_visits,
+                    show=False,
+                )
+            return out_path
+
+        # default: render to screen or return array
+        return self.render_matplotlib(
+            mode=mode, figsize=figsize, show_visits=show_visits
+        )
+
+    def render_matplotlib(
+        self, mode="human", figsize=(6, 6), show_visits=True, cmap=None, show=True
+    ):
+        """
+        Matplotlib renderer.
+        - mode="human": show non-blocking interactive window.
+        - mode="rgb_array": return an HxWx3 uint8 RGB image.
+        """
+        # build display grid: 0=free,1=hard,2=soft
+        display = np.copy(self.map).astype(np.int8)
+
+        # default colormap: free=white, hard=dark gray, soft=light orange
+        if cmap is None:
+            cmap = colors.ListedColormap(
+                ["#ffffff", "#444444", "#ffcc99"]
+            )  # free, hard, soft
+            bounds = [0, 1, 2, 3]
+            norm = colors.BoundaryNorm(bounds, cmap.N)
+        else:
+            norm = None
+
+        fig = plt.figure(figsize=figsize)
+        ax = fig.add_subplot(111)
+        ax.imshow(display, origin="lower", cmap=cmap, norm=norm)
+
+        # visits overlay: small text in blue
+        if show_visits:
+            for yy in range(self.H):
+                for xx in range(self.W):
+                    v = int(self.visit_counts[yy, xx])
+                    if v > 0:
+                        ax.text(
+                            xx,
+                            yy,
+                            str(min(9, v)),
+                            color="blue",
+                            ha="center",
+                            va="center",
+                            fontsize=8,
+                        )
+
+        # robot marker and heading arrow
+        if self.in_bounds(self.x, self.y):
+            dx, dy = DIR2DELTA[self.theta]
+            ax.scatter(
+                [self.x], [self.y], c="red", s=120, marker="o", edgecolors="k", zorder=3
+            )
+            ax.arrow(
+                self.x - 0.3 * dx,
+                self.y - 0.3 * dy,
+                0.6 * dx,
+                0.6 * dy,
+                head_width=0.2,
+                head_length=0.2,
+                fc="k",
+                ec="k",
+                zorder=4,
+            )
+
+        ax.set_xticks(np.arange(-0.5, self.W, 1.0))
+        ax.set_yticks(np.arange(-0.5, self.H, 1.0))
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        ax.grid(which="both", color="gray", linewidth=0.5, linestyle="--", alpha=0.3)
+        ax.set_xlim(-0.5, self.W - 0.5)
+        ax.set_ylim(-0.5, self.H - 0.5)
+        ax.set_aspect("equal")
+
+        if mode == "human":
+            if show:
+                plt.show(block=False)
+                plt.pause(0.001)
+        elif mode == "rgb_array":
+            # Use Agg canvas for reliable off-screen rendering and RGB buffer
+            canvas = FigureCanvas(fig)
+            canvas.draw()
+            w, h = canvas.get_width_height()
+            # Use ARG B buffer then convert to RGB to be compatible across backends
+            buf = canvas.tostring_argb()
+            arr = np.frombuffer(buf, dtype=np.uint8).reshape((h, w, 4))
+            # ARGB -> RGBA
+            arr = arr[:, :, [1, 2, 3, 0]]
+            img = arr[:, :, :3].copy()
+            plt.close(fig)
+            return img
+        else:
+            if show:
+                plt.show()
+
+    def save_frame(self, save_dir=None, prefix=None):
+        """
+        Render and save a single frame (PNG) to `save_dir`.
+        - `save_dir`: directory path; defaults to `./render_frames`.
+        - `prefix`: filename prefix, default `frame`.
+        Returns the saved filepath.
+        """
+        if save_dir is None:
+            save_dir = os.path.join(os.getcwd(), "render_frames")
+        os.makedirs(save_dir, exist_ok=True)
+
+        img = self.render_matplotlib(mode="rgb_array", show=False)
+        prefix = prefix or "frame"
+        filename = f"{prefix}_{self.steps:06d}.png"
+        out_path = os.path.join(save_dir, filename)
+        plt.imsave(out_path, img)
+        return out_path
+
+    def make_video(self, save_dir=None, output_path=None, fps=10):
+        """
+        Stitch saved frames in `save_dir` into a video at `output_path` using imageio.
+        - `save_dir`: directory containing frames saved by `save_frame` (default `./render_frames`).
+        - `output_path`: file path to write (default: `render_animation.mp4` in save_dir).
+        - `fps`: frames per second.
+        Returns `output_path` on success.
+        """
+        if save_dir is None:
+            save_dir = os.path.join(os.getcwd(), "render_frames")
+        os.makedirs(save_dir, exist_ok=True)
+        if output_path is None:
+            output_path = os.path.join(save_dir, "render_animation.mp4")
+
+        frames = sorted([f for f in os.listdir(save_dir) if f.lower().endswith(".png")])
+        if len(frames) == 0:
+            raise RuntimeError(f"No PNG frames found in {save_dir}")
+
+        writer = imageio.get_writer(output_path, fps=fps)
+        try:
+            for fname in frames:
+                full = os.path.join(save_dir, fname)
+                img = imageio.imread(full)
+                # ensure dimensions are divisible by 16 (macro block size) to avoid ffmpeg resizing
+                h, w = img.shape[:2]
+                new_h = ((h + 15) // 16) * 16
+                new_w = ((w + 15) // 16) * 16
+                if new_h != h or new_w != w:
+                    pad_h = new_h - h
+                    pad_w = new_w - w
+                    # pad bottom and right with black pixels
+                    if img.ndim == 3:
+                        img = np.pad(
+                            img,
+                            ((0, pad_h), (0, pad_w), (0, 0)),
+                            mode="constant",
+                            constant_values=0,
+                        )
+                    else:
+                        img = np.pad(
+                            img,
+                            ((0, pad_h), (0, pad_w)),
+                            mode="constant",
+                            constant_values=0,
+                        )
+                writer.append_data(img)
+        finally:
+            writer.close()
+
+        return output_path
+
 
 # minimal demo when run directly
 if __name__ == "__main__":
-    env = RoombaSoftPOMDPEnv(width=20, height=20, exit_mode="reset", seed=0, random_obstacles=True)
+    env = RoombaSoftPOMDPEnv(
+        width=20, height=20, exit_mode="reset", seed=0, random_obstacles=True
+    )
     obs = env.reset()
     print("initial obs", obs)
     total = 0.0
-    for t in range(200):
+    # Record frames every `save_every` steps and stitch into a video afterwards.
+    save_every = 10
+    total_steps = 2000
+    save_dir = os.path.join(os.getcwd(), "render_frames", "run1")
+    os.makedirs(save_dir, exist_ok=True)
+    prefix = "run1"
+
+    for t in range(total_steps):
         # random policy demo: 50% move forward, 10% back, 20% left turn, 20% right turn
-        a = np.random.choice([0,1,2,3], p=[0.5,0.1,0.2,0.2])
+        a = np.random.choice([0, 1, 2, 3], p=[0.5, 0.1, 0.2, 0.2])
         obs, r, done, info = env.step(a)
         total += r
-        if t % 10 == 0:
-            env.render()
+
+        # save frame off-screen (does not open a GUI window)
+        if t % save_every == 0:
+            env.save_frame(save_dir=save_dir, prefix=prefix)
+
         if done:
             print("done at", t)
             break
+
     print("total reward", total)
+
+    # Attempt to make a video from saved frames
+    try:
+        out_path = env.make_video(
+            save_dir=save_dir,
+            output_path=os.path.join(save_dir, f"{prefix}_anim.mp4"),
+            fps=5,
+        )
+        print(f"Saved video to: {out_path}")
+    except Exception as e:
+        print("Could not create video:", e)

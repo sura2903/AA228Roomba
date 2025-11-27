@@ -48,15 +48,33 @@ class POMCPTree:
     def reset(self):
         self.root = POMCPNode()
 
-    def search(self, belief_particles):
+    def search(
+        self,
+        belief_particles,
+        sim_counts_baseline=None,
+        total_visitable=None,
+        coverage_goal=None,
+    ):
         # belief_particles: list of (state, hidden, weight) or just state tuples depending on PF
         for _ in range(self.sims):
             # sample a root particle
-            particle = self.rng.choices(
-                belief_particles, weights=[p[2] for p in belief_particles], k=1
-            )[0]
+            weights = [p[2] for p in belief_particles]
+            particle = self.rng.choices(belief_particles, weights=weights, k=1)[0]
             state, hidden, w = particle
-            self._simulate(state, hidden, self.root, depth=0)
+            # initialize per-simulation visit counts (copy baseline if provided)
+            if sim_counts_baseline is None:
+                sim_counts = {}
+            else:
+                sim_counts = dict(sim_counts_baseline)
+            self._simulate(
+                state,
+                hidden,
+                self.root,
+                depth=0,
+                sim_counts=sim_counts,
+                total_visitable=total_visitable,
+                coverage_goal=coverage_goal,
+            )
 
         # select best action by highest average Q
         best_a = None
@@ -73,7 +91,16 @@ class POMCPTree:
                 best_a = a
         return best_a
 
-    def _simulate(self, state, hidden, node, depth):
+    def _simulate(
+        self,
+        state,
+        hidden,
+        node,
+        depth,
+        sim_counts=None,
+        total_visitable=None,
+        coverage_goal=None,
+    ):
         if depth >= self.max_depth:
             return 0.0
 
@@ -103,8 +130,10 @@ class POMCPTree:
                     best_a = a
             a = best_a
 
-        # simulate generative model
-        next_state, next_hidden, obs, reward, done = self.generative(state, hidden, a)
+        # simulate generative model; pass sim_counts so generative can compute simulated rewards
+        next_state, next_hidden, obs, reward, done = self.generative(
+            state, hidden, a, sim_counts, total_visitable, coverage_goal
+        )
 
         # find or create child node for observation under the chosen action
         entry = node.action_children[a]
@@ -118,7 +147,13 @@ class POMCPTree:
         else:
             child_node = obs_children[obs]
             R = reward + self.gamma * self._simulate(
-                next_state, next_hidden, child_node, depth + 1
+                next_state,
+                next_hidden,
+                child_node,
+                depth + 1,
+                sim_counts=sim_counts,
+                total_visitable=total_visitable,
+                coverage_goal=coverage_goal,
             )
 
         # backpropagate

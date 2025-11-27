@@ -14,7 +14,7 @@ def generative_from_env(env):
     where obs_key is a hashable observation (we'll use a rounded-tuple) suitable for dict keys.
     """
 
-    def gen(state, hidden, action):
+    def gen(state, hidden, action, sim_counts, total_visitable, coverage_goal):
         (nx, ny, ntheta), (nd, nk) = env.sample_transition(state, hidden, int(action))
         # synthesize noisy observation according to env noise params
         x_obs = float(nx) + np.random.normal(scale=env.obs_sigma)
@@ -26,17 +26,61 @@ def generative_from_env(env):
         th_obs = float(np.clip(th_obs, 0.0, 3.0))
         # use rounded observation as key to avoid floating point dict issues
         obs_key = (round(x_obs, 2), round(y_obs, 2), round(th_obs, 2))
-        # reward is computed using env.reward_model (prev state -> next state)
+
+        # compute simulated reward using sim_counts (sparse dict keyed by (x,y))
         prev_state = state
         prev_hidden = hidden
         next_state = (int(nx), int(ny), int(ntheta) % 4)
         next_hidden = (int(nd), int(nk))
-        reward = env.reward_model(
-            prev_state, prev_hidden, action, next_state, next_hidden
-        )
-        # done flag: we won't end rollouts early by coverage, only by depth or explicit terminal cells
+
+        # update simulated visit counts (match env behavior which increments before reward)
+        key = (int(nx), int(ny))
+        if sim_counts is None:
+            sim_counts = {}
+        sim_counts[key] = int(sim_counts.get(key, 0)) + 1
+
+        # exploration reward: 1/(1 + visits)
+        visits = int(sim_counts.get(key, 0))
+        r = -float(env.time_penalty)
+        r += 1.0 / (1.0 + float(visits))
+
+        # stuck penalty based on simulated next_hidden k
+        if next_hidden[1] > 0:
+            r -= float(env.stuck_penalty) * float(next_hidden[1])
+
+        # collision penalty: detect intended move and penalize if intended cell is hard and robot stayed
+        if action in (0, 1):
+            ptheta = int(prev_state[2])
+            intended_abs = ptheta if action == 0 else (ptheta + 2) % 4
+            intended_dx, intended_dy = ((0, 1), (1, 0), (0, -1), (-1, 0))[intended_abs]
+            intended_x = int(prev_state[0]) + intended_dx
+            intended_y = int(prev_state[1]) + intended_dy
+            if env.is_hard(intended_x, intended_y) and (
+                next_state[0] == prev_state[0] and next_state[1] == prev_state[1]
+            ):
+                r -= float(env.collision_penalty)
+
+        # coverage termination check using sim_counts and total_visitable
         done = False
-        return next_state, next_hidden, obs_key, float(reward), done
+        if (
+            total_visitable is not None
+            and total_visitable > 0
+            and coverage_goal is not None
+        ):
+            # count unique visited keys that are visitable (map != 1)
+            visited = 0
+            for (vx, vy), cnt in sim_counts.items():
+                if (
+                    cnt > 0
+                    and (0 <= vx < env.W and 0 <= vy < env.H)
+                    and env.map[vy, vx] != 1
+                ):
+                    visited += 1
+            explored_fraction = float(visited) / float(total_visitable)
+            if explored_fraction >= coverage_goal:
+                done = True
+
+        return next_state, next_hidden, obs_key, float(r), done
 
     return gen
 
@@ -109,8 +153,22 @@ def run_pomcp_demo(
         # construct belief list from PF
         belief = pf_particles_as_belief(pf)
 
-        # run search
-        action = tree.search(belief)
+        # prepare per-simulation baseline visit counts and coverage params
+        sim_baseline = {}
+        for yy in range(env.H):
+            for xx in range(env.W):
+                cnt = int(env.visit_counts[yy, xx])
+                if cnt > 0 and env.map[yy, xx] != 1:
+                    sim_baseline[(xx, yy)] = cnt
+        total_visitable = int(np.sum(env.map != 1))
+
+        # run search (pass baseline sim counts so sims can be coverage-aware)
+        action = tree.search(
+            belief,
+            sim_counts_baseline=sim_baseline,
+            total_visitable=total_visitable,
+            coverage_goal=env.coverage_goal,
+        )
 
         # execute action in env
         step_ret = env.step(action)
@@ -162,6 +220,6 @@ if __name__ == "__main__":
         seed=0,
         N_particles=200,
         sims=200,
-        max_steps=2000,
+        max_steps=10000,
         save_every=50,
     )

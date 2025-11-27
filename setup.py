@@ -283,12 +283,17 @@ class RoombaSoftPOMDPEnv(gym.Env):
                 return (x, y, theta), (d, nk)
 
         # ---------- e != d (wrong direction while stuck) ----------
-        # If moving into hard cell -> stay but maybe update orientation
-        if self.is_hard(candx, candy):
+        # When stuck inside a soft region, only the stored reverse direction `d` is
+        # considered an attempt to exit. For other directions, treat any
+        # non-soft candidate cell (free or hard) as blocked: the robot stays
+        # in place but may update its orientation. Movement into another soft
+        # cell is allowed (and increases depth).
+        if not self.is_soft(candx, candy):
+            # blocked by hard or free cell -> stay but maybe update orientation
             ntheta = e
             return (x, y, ntheta), (d, k)
 
-        # else allow move (into soft region or free), and increase depth
+        # else allow move into another soft cell, and increase depth
         nx, ny, ntheta = candx, candy, e
         nk = min(k + 1, self.K)
         return (nx, ny, ntheta), (d, nk)
@@ -409,11 +414,13 @@ class RoombaSoftPOMDPEnv(gym.Env):
         # termination: coverage or max_steps
         # Compute explored fraction relative to visitable cells (non-hard obstacles).
         # This avoids requiring visits to permanently blocked hard cells.
-        visit_mask = (self.visit_counts > 0)
-        visitable_mask = (self.map != 1)
+        visit_mask = self.visit_counts > 0
+        visitable_mask = self.map != 1
         total_visitable = int(np.sum(visitable_mask))
         if total_visitable > 0:
-            explored = float(np.sum(visit_mask & visitable_mask)) / float(total_visitable)
+            explored = float(np.sum(visit_mask & visitable_mask)) / float(
+                total_visitable
+            )
         else:
             explored = 1.0
         done = (explored >= self.coverage_goal) or (self.steps >= self.max_steps)

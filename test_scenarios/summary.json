@@ -1,0 +1,117 @@
+{
+  "total_scenarios": 14,
+  "scenarios": [
+    {
+      "name": "empty_room",
+      "description": "Empty room baseline",
+      "shape": [
+        20,
+        20
+      ]
+    },
+    {
+      "name": "single_soft_center",
+      "description": "Single 3x3 soft obstacle in center",
+      "shape": [
+        20,
+        20
+      ]
+    },
+    {
+      "name": "corridor_narrow",
+      "description": "Narrow corridor with blocking soft obstacle",
+      "shape": [
+        20,
+        20
+      ]
+    },
+    {
+      "name": "large_soft_region",
+      "description": "Large connected soft region (high risk)",
+      "shape": [
+        20,
+        20
+      ]
+    },
+    {
+      "name": "scattered_soft_seed42",
+      "description": "Scattered soft obstacles (n=12)",
+      "shape": [
+        20,
+        20
+      ]
+    },
+    {
+      "name": "scattered_soft_seed123",
+      "description": "Scattered soft obstacles (n=12)",
+      "shape": [
+        20,
+        20
+      ]
+    },
+    {
+      "name": "mixed_obstacles_seed42",
+      "description": "Mixed hard and soft obstacles",
+      "shape": [
+        20,
+        20
+      ]
+    },
+    {
+      "name": "mixed_obstacles_seed999",
+      "description": "Mixed hard and soft obstacles",
+      "shape": [
+        20,
+        20
+      ]
+    },
+    {
+      "name": "four_rooms",
+      "description": "Four rooms with doorways and soft obstacles",
+      "shape": [
+        20,
+        20
+      ]
+    },
+    {
+      "name": "gauntlet",
+      "description": "Gauntlet with multiple soft obstacles",
+      "shape": [
+        10,
+        30
+      ]
+    },
+    {
+      "name": "checkerboard_soft",
+      "description": "Checkerboard pattern of soft obstacles",
+      "shape": [
+        20,
+        20
+      ]
+    },
+    {
+      "name": "soft_spiral",
+      "description": "Spiral pattern (pathological case)",
+      "shape": [
+        21,
+        21
+      ]
+    },
+    {
+      "name": "start_stuck",
+      "description": "Start inside soft region - escape challenge",
+      "shape": [
+        15,
+        15
+      ]
+    },
+    {
+      "name": "soft_maze",
+      "description": "Maze with soft obstacles in corridors",
+      "shape": [
+        20,
+        20
+      ]
+    }
+  ]
+}

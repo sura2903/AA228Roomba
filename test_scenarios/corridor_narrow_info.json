@@ -1,0 +1,6 @@
+{
+  "name": "corridor_narrow",
+  "description": "Narrow corridor with blocking soft obstacle",
+  "width": 20,
+  "height": 20
+}

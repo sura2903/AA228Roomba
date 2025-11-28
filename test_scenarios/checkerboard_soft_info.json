@@ -1,0 +1,6 @@
+{
+  "name": "checkerboard_soft",
+  "description": "Checkerboard pattern of soft obstacles",
+  "width": 20,
+  "height": 20
+}

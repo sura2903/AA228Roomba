@@ -1,0 +1,6 @@
+{
+  "name": "soft_maze",
+  "description": "Maze with soft obstacles in corridors",
+  "width": 20,
+  "height": 20
+}

@@ -1,0 +1,6 @@
+{
+  "name": "single_soft_center",
+  "description": "Single 3x3 soft obstacle in center",
+  "width": 20,
+  "height": 20
+}

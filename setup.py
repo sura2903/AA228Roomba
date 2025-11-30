@@ -58,8 +58,11 @@ class RoombaSoftPOMDPEnv(gym.Env):
         obs_sigma=0.3,
         theta_obs_sigma=0.05,
         time_penalty=0.01,
-        stuck_penalty=0.5,
-        collision_penalty=0.5,
+        stuck_penalty_alpha=2,
+        stuck_penalty_beta=1.1,
+        collision_penalty=8,
+        visit_reward_initial=5,
+        visit_reward_lambda=1.5,
         coverage_goal=0.95,
         max_steps=1000,
         seed=None,
@@ -126,8 +129,16 @@ class RoombaSoftPOMDPEnv(gym.Env):
 
         # rewards
         self.time_penalty = time_penalty
-        self.stuck_penalty = stuck_penalty
+        self.stuck_penalty_alpha = stuck_penalty_alpha
+        self.stuck_penalty_beta = stuck_penalty_beta
         self.collision_penalty = collision_penalty
+        self.visit_reward_initial = visit_reward_initial
+        self.visit_reward_lambda = visit_reward_lambda
+
+        # Hparams (can be tuned later if necessary)
+        self.w_explore = 1.0
+        self.w_stuck = 1.0
+        self.w_collision = 1.0
 
         # termination
         self.coverage_goal = coverage_goal
@@ -283,20 +294,20 @@ class RoombaSoftPOMDPEnv(gym.Env):
                 return (x, y, theta), (d, nk)
 
         # ---------- e != d (wrong direction while stuck) ----------
-        # When stuck inside a soft region, only the stored reverse direction `d` is
-        # considered an attempt to exit. For other directions, treat any
-        # non-soft candidate cell (free or hard) as blocked: the robot stays
-        # in place but may update its orientation. Movement into another soft
-        # cell is allowed (and increases depth).
-        if not self.is_soft(candx, candy):
-            # blocked by hard or free cell -> stay but maybe update orientation
-            ntheta = e
-            return (x, y, ntheta), (d, k)
+        # We are assuming that in a soft region the robot can only move forward and backward.
+        # If it tries to move sideways, it stays in the same location.
+        if e == theta: # only allow forward movement
+            if self.is_soft(candx, candy):
+                nx, ny, ntheta = candx, candy, e
+                nk = min(k + 1, self.K)
+                # d unchanged
+                return (nx, ny, ntheta), (d, nk)
+            else:
+                # blocked by free/hard
+                return (x, y, theta), (d, k)
 
-        # else allow move into another soft cell, and increase depth
-        nx, ny, ntheta = candx, candy, e
-        nk = min(k + 1, self.K)
-        return (nx, ny, ntheta), (d, nk)
+        # 3. Left or right or backward-but-not-d → stay put, no updates
+        return (x, y, theta), (d, k)
 
     # ---------------------
     # Reward model
@@ -305,8 +316,8 @@ class RoombaSoftPOMDPEnv(gym.Env):
         """
         Reward composition:
          - time penalty
-         - exploration reward: 1/(1 + visits) for the next cell
-         - stuck penalty proportional to k (next_hidden)
+         - exploration reward: Exponentially decays after I visit the cell once
+         - stuck penalty proportional to k (exponentially)
          - collision penalty if attempted move into hard obstacle
         """
         px, py, ptheta = prev_state
@@ -318,11 +329,13 @@ class RoombaSoftPOMDPEnv(gym.Env):
 
         # exploration reward (encourage visiting new cells), measured on next cell
         visits = self.visit_counts[ny, nx]
-        r += 1.0 / (1.0 + visits)
+        explore_reward = self.visit_reward_initial * np.exp(-self.visit_reward_lambda * visits)
+        r += self.w_explore * explore_reward
 
         # stuck penalty (based on next hidden depth)
         if nk > 0:
-            r -= self.stuck_penalty * float(nk)
+            stuck_penalty = self.stuck_penalty_alpha * (np.exp(self.stuck_penalty_beta * nk) - 1.0)
+            r -= self.w_stuck * stuck_penalty
 
         # collision penalty: if attempted cell (intended move) was hard and agent stayed
         # detect: agent intended forward/back and next pos equals prev pos while intended would have changed pos
@@ -333,7 +346,7 @@ class RoombaSoftPOMDPEnv(gym.Env):
             intended_y = py + intended_dy
             # if intended cell is hard and agent didn't change cells, penalize
             if self.is_hard(intended_x, intended_y) and (nx == px and ny == py):
-                r -= self.collision_penalty
+                r -= self.w_collision * self.collision_penalty
 
         return r
 

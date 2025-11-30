@@ -501,7 +501,7 @@ class ScenarioTesterCSV:
             p_exit_base=0.9,
             p_exit_alpha=0.5,
             coverage_goal=0.85,
-            max_steps=5000,
+            max_steps=7000,
             seed=42
         )
         

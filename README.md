@@ -21,3 +21,14 @@ pip install imageio[pyav]
 ```
 
 When running demos that create MP4s, ensure `ffmpeg` is available (the `imageio[ffmpeg]` wheel will download a bundled ffmpeg on install). If you prefer a system `ffmpeg`, you can install it separately and make sure it's on your PATH.
+
+
+
+## Running Sarsa/Qlearning
+
+Run the command:
+python main.py --method sarsa --scenario single_soft_center --episodes 500 --log-transitions
+
+--method takes in 'sarsa' or 'qlearning'
+--scenario takes any of the pre-defined scenarios in /test_scenarios
+--log-transitions logs the result into csv files

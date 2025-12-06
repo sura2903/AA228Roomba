@@ -60,9 +60,9 @@ class RoombaSoftPOMDPEnv(gym.Env):
         time_penalty=0.01,
         stuck_penalty_alpha=2,
         stuck_penalty_beta=1.1,
-        collision_penalty=8,
-        visit_reward_initial=5,
-        visit_reward_lambda=1.5,
+        collision_penalty=10,
+        visit_reward_initial=2,
+        visit_reward_lambda=0.07,
         coverage_goal=0.95,
         max_steps=1000,
         seed=None,
@@ -111,6 +111,8 @@ class RoombaSoftPOMDPEnv(gym.Env):
         self.d = -1  # -1 means no stored entry direction
         self.k = 0
 
+        self.stuck_count = 0
+
         # transition params
         self.exit_mode = exit_mode
         assert self.exit_mode in ("reset", "decrement")
@@ -134,6 +136,7 @@ class RoombaSoftPOMDPEnv(gym.Env):
         self.collision_penalty = collision_penalty
         self.visit_reward_initial = visit_reward_initial
         self.visit_reward_lambda = visit_reward_lambda
+        print("abhat visit_reward_lambda: ", self.visit_reward_lambda)
 
         # Hparams (can be tuned later if necessary)
         self.w_explore = 1.0
@@ -327,15 +330,21 @@ class RoombaSoftPOMDPEnv(gym.Env):
 
         r = -self.time_penalty
 
+        # print("Next state: ", next_state)
+
         # exploration reward (encourage visiting new cells), measured on next cell
         visits = self.visit_counts[ny, nx]
-        explore_reward = self.visit_reward_initial * np.exp(-self.visit_reward_lambda * visits)
-        r += self.w_explore * explore_reward
+        explore_reward = self.visit_reward_initial * (np.exp(self.visit_reward_lambda * visits) - 1.0)
+        # explore_reward = self.visit_reward_initial * np.exp(-self.visit_reward_lambda * visits)
+        r -= self.w_explore * explore_reward
+        # print("Exploration: ",self.w_explore * explore_reward)
 
         # stuck penalty (based on next hidden depth)
         if nk > 0:
             stuck_penalty = self.stuck_penalty_alpha * (np.exp(self.stuck_penalty_beta * nk) - 1.0)
             r -= self.w_stuck * stuck_penalty
+            self.stuck_count+=1
+            # print("Stuck: ",-self.w_stuck * stuck_penalty)
 
         # collision penalty: if attempted cell (intended move) was hard and agent stayed
         # detect: agent intended forward/back and next pos equals prev pos while intended would have changed pos
@@ -346,8 +355,9 @@ class RoombaSoftPOMDPEnv(gym.Env):
             intended_y = py + intended_dy
             # if intended cell is hard and agent didn't change cells, penalize
             if self.is_hard(intended_x, intended_y) and (nx == px and ny == py):
-                r -= self.w_collision * self.collision_penalty
-
+                r -= self.w_collision * max(self.collision_penalty, abs(r))
+                # print("Collision: ", -self.w_collision * self.collision_penalty)
+        # print("final ", r)
         return r
 
     # ---------------------
@@ -382,10 +392,37 @@ class RoombaSoftPOMDPEnv(gym.Env):
             # fallback
             self.x, self.y = 0, 0
         else:
-            idx = np.random.choice(len(free_cells))
+            idx = np.argmin(self.visit_counts[free_cells[:,0], free_cells[:,1]])
+            # idx = np.random.choice(len(free_cells))
             yy, xx = free_cells[idx]
             self.x, self.y = int(xx), int(yy)
         self.theta = int(np.random.choice([0, 1, 2, 3]))
+        self.d = -1
+        self.k = 0
+        self.visit_counts[:] = 0
+        self.visit_counts[self.y, self.x] = 1
+        self.steps = 0
+        if self._is_gymnasium:
+            # Gymnasium expects (obs, info)
+            return self.observe(), {}
+        return self.observe()
+    
+    def reset_eval(self, seed=1, options=None):
+        # call parent reset (Gym/Gymnasium compatibility)
+        try:
+            parent_ret = super().reset(seed=seed)
+        except TypeError:
+            # older gym may not accept seed as keyword
+            parent_ret = super().reset(seed)
+        free_cells = np.argwhere(self.map == 0)
+        if len(free_cells) == 0:
+            # fallback
+            self.x, self.y = 0, 0
+        else:
+            idx = 0
+            yy, xx = free_cells[idx]
+            self.x, self.y = int(xx), int(yy)
+        self.theta = 0
         self.d = -1
         self.k = 0
         self.visit_counts[:] = 0

@@ -24,10 +24,10 @@ class TransitionLogger:
         
         # Column names
         self.columns = [
-            's_x', 's_y', 's_theta', 's_k',  # Current state
+            's_x', 's_y', 's_theta', 's_k', 's_d',  # Current state
             'action',                         # Action taken
             'reward',                         # Immediate reward
-            'sp_x', 'sp_y', 'sp_theta', 'sp_k',  # Next state
+            'sp_x', 'sp_y', 'sp_theta', 'sp_k', 'sp_d',  # Next state
             'episode',                        # Episode number
             'step',                          # Step within episode
             'done',                          # Terminal state flag
@@ -49,16 +49,16 @@ class TransitionLogger:
             state: (x, y, theta, k)
             action: int [0-3]
             reward: float
-            next_state: (x', y', theta', k')
+            next_state: (x', y', theta', k, d')
             step: int - step number in episode
             done: bool - episode terminated
             coverage: float - fraction of map covered
         """
         transition = [
-            state[0], state[1], state[2], state[3],     # s
+            state[0], state[1], state[2], state[3],state[4],     # s
             action,                                      # a
             reward,                                      # r
-            next_state[0], next_state[1], next_state[2], next_state[3],  # s'
+            next_state[0], next_state[1], next_state[2], next_state[3], next_state[4],  # s'
             self.episode_num,                           # episode
             step,                                       # step
             1 if done else 0,                          # done
@@ -93,7 +93,7 @@ class TransitionLogger:
 class BaseAgent:
     def __init__(self, env, alpha=0.1, gamma=0.95,
                  epsilon=1.0, epsilon_decay=0.995, epsilon_min=0.01,
-                 log_transitions=True, log_filepath="transitions.csv"):
+                 log_transitions=True, log_filepath="transitions.csv", log_filepath_eval = "transitions_eval.csv"):
 
         self.env = env
         self.alpha = alpha
@@ -112,8 +112,10 @@ class BaseAgent:
 
         if log_transitions:
             self.logger = TransitionLogger(log_filepath)
+            self.logger_eval = TransitionLogger(log_filepath_eval)
         else:
             self.logger = None
+            self.logger_eval = None
 
     def get_state(self):
         """Return current environment state as tuple."""
@@ -128,7 +130,7 @@ class BaseAgent:
     def decay_epsilon(self):
         """Decay epsilon after each episode."""
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
-
+    
     def train(self, n_episodes=500, eval_every=100, verbose=False, steps=2000):
         """Generic training loop for any agent with train_episode()."""
         print("="*80)
@@ -157,6 +159,48 @@ class BaseAgent:
         print("Training complete.")
         if self.logger:
             self.logger.save_batch()
+
+    def eval(self, steps=100):
+        print("inside eval")
+        """Train one episode using SARSA."""
+        obs = self.env.reset_eval()
+        state = self.get_state()
+        action = self.choose_action(state, training=False)
+
+        episode_reward = 0
+        episode_td_errors = []
+        stuck_count = 0
+
+        for step in range(steps):
+            # print("step: ", step)
+            if getattr(self.env, "_is_gymnasium", False):
+                obs, reward, terminated, truncated, info = self.env.step(action)
+                done = terminated or truncated
+            else:
+                obs, reward, done, info = self.env.step(action)
+            episode_reward += reward
+            next_state = self.get_state()
+            next_action = self.choose_action(next_state, training=False)
+            # print(next_action)
+
+            # Log transition
+            if self.logger_eval:
+                # print("yes")
+                coverage = info.get("explored_fraction", 0) if isinstance(info, dict) else 0
+                self.logger_eval.log_transition(state, action, reward, next_state, step, done, coverage)
+
+            # Check termination
+            explored_frac = info.get("explored_fraction", 0) if isinstance(info, dict) else 0
+            if explored_frac >= self.env.coverage_goal or done:
+                break
+
+            state = next_state
+            action = next_action
+        if self.logger_eval:
+            self.logger_eval.increment_episode()
+
+        return episode_reward
+
 
 # ==================== SARSA AGENT ====================
 
@@ -218,7 +262,8 @@ class SARSAAgent(BaseAgent):
 
         if self.logger:
             self.logger.increment_episode()
-
+        # print("Abhat")
+        # print("Stuck count: ",self.env.stuck_count)
         return episode_reward, step + 1, explored_frac, stuck_count
 
 # ==================== Q-LEARNING AGENT ====================

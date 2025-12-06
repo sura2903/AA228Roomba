@@ -2,10 +2,12 @@ import numpy as np
 import pandas as pd
 import csv
 import os
+import json
 
 from agents import SARSAAgent, QLearningAgent
 from setup import RoombaSoftPOMDPEnv
 from generate_test_scenarios import load_scenario
+from plot_heatmap import save_heatmaps
 
 # ==================== TRANSITION ANALYZER ====================
 
@@ -165,7 +167,7 @@ class TransitionAnalyzer:
             plt.savefig(save_path, dpi=150, bbox_inches='tight')
             print(f"✓ Saved reward distribution plot to {save_path}")
         
-        plt.show()
+        # plt.show()
     
     def export_summary(self, output_path="transition_analysis.txt"):
         """Export analysis to text file."""
@@ -211,11 +213,14 @@ class ScenarioTester:
         epsilon_decay=0.995,
         epsilon_min=0.01,
         log_transitions=True,
-        log_folderpath="./",
-        file_prefix='transitions.csv',
-        steps=2000
+        save_dir="./",
+        steps=2000,
+        visit_reward_lambda=0.07
     ):
-        log_filepath = os.path.join(log_folderpath, file_prefix+".csv")
+        
+        log_filepath = os.path.join(save_dir, "transition_train.csv")
+        log_filepath_eval = os.path.join(save_dir,"transition_eval.csv")
+
         # load scenario
         map_array, info = load_scenario(scenario_name, self.scenarios_dir)
 
@@ -234,7 +239,8 @@ class ScenarioTester:
             p_exit_alpha=0.5,
             coverage_goal=0.85,
             max_steps=7000,
-            seed=42
+            seed=42,
+            visit_reward_lambda = visit_reward_lambda
         )
 
         # choose method
@@ -244,24 +250,43 @@ class ScenarioTester:
                                epsilon=epsilon, epsilon_decay=epsilon_decay,
                                epsilon_min=epsilon_min,
                                log_transitions=log_transitions,
-                               log_filepath=log_filepath)
+                               log_filepath=log_filepath,
+                               log_filepath_eval = log_filepath_eval)
         else:
             agent = QLearningAgent(env,
                                    alpha=alpha, gamma=gamma,
                                    epsilon=epsilon, epsilon_decay=epsilon_decay,
                                    epsilon_min=epsilon_min,
                                    log_transitions=log_transitions,
-                                   log_filepath=log_filepath)
+                                   log_filepath=log_filepath,
+                                   log_filepath_eval = log_filepath_eval)
 
         agent.train(n_episodes=n_train_episodes, eval_every=100, verbose=False, steps=steps)
+
+        # states = sorted(agent.Q.keys())
+        # q_array = np.vstack([agent.Q[s] for s in states])
+        # np.save(os.path.join(save_dir,"q_table.npy"), q_array)
+        qtable = {str(state):list(agent.Q[state]) for state in agent.Q}
+        json_path = os.path.join(save_dir,"q_table.json")
+        with open(json_path, 'w') as f:
+            json.dump(qtable, f)
+
+
+        episode_reward = agent.eval(steps=steps)
+        print("FINAL REWARD: ", episode_reward)
+
         
         # Run analyzer afterward
         if log_transitions:
             analyzer = TransitionAnalyzer(log_filepath)
             analyzer.summary_statistics()
-            analysis_path = os.path.join(log_folderpath,file_prefix+'analysis.txt')
-            plot_path = os.path.join(log_folderpath,file_prefix+'_rewards.png')
+            analysis_path = os.path.join(save_dir, 'analysis_train.txt')
+            plot_path = os.path.join(save_dir, 'plots_rewards_train.png')
             analyzer.export_summary(analysis_path)
             analyzer.plot_reward_distribution(save_path=plot_path)
+
+            analyzer = TransitionAnalyzer(log_filepath_eval)
+            analyzer.summary_statistics()
+            save_heatmaps(log_filepath_eval, save_dir, scenario_name)
 
         return agent

@@ -211,8 +211,11 @@ class ScenarioTester:
         epsilon_decay=0.995,
         epsilon_min=0.01,
         log_transitions=True,
-        log_filepath="transitions.csv"
+        log_folderpath="./",
+        file_prefix='transitions.csv',
+        steps=2000
     ):
+        log_filepath = os.path.join(log_folderpath, file_prefix+".csv")
         # load scenario
         map_array, info = load_scenario(scenario_name, self.scenarios_dir)
 
@@ -250,11 +253,15 @@ class ScenarioTester:
                                    log_transitions=log_transitions,
                                    log_filepath=log_filepath)
 
-        agent.train(n_episodes=n_train_episodes, eval_every=100, verbose=False)
-
+        agent.train(n_episodes=n_train_episodes, eval_every=100, verbose=False, steps=steps)
+        
         # Run analyzer afterward
         if log_transitions:
             analyzer = TransitionAnalyzer(log_filepath)
             analyzer.summary_statistics()
+            analysis_path = os.path.join(log_folderpath,file_prefix+'analysis.txt')
+            plot_path = os.path.join(log_folderpath,file_prefix+'_rewards.png')
+            analyzer.export_summary(analysis_path)
+            analyzer.plot_reward_distribution(save_path=plot_path)
 
         return agent

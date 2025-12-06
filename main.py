@@ -10,6 +10,8 @@ def parse_args():
     parser.add_argument("-m", "--method", choices=["sarsa", "qlearning"], default="sarsa")
     parser.add_argument("-s", "--scenario", default="single_soft_center")
     parser.add_argument("-e", "--episodes", type=int, default=500)
+    parser.add_argument("-step", "--steps", type=int, default=2000)
+
 
     parser.add_argument("--alpha", type=float, default=0.1)
     parser.add_argument("--gamma", type=float, default=0.95)
@@ -31,7 +33,8 @@ def main():
 
     log_filepath = os.path.join(args.log_folder, args.scenario, args.method)
     os.makedirs(log_filepath, exist_ok=True)
-    log_filepath = os.path.join(log_filepath, datetime.now().strftime('%Y-%m-%d-%H-%M-%S')+'.csv')
+    file_prefix = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+    # log_filepath = os.path.join(log_filepath, datetime.now().strftime('%Y-%m-%d-%H-%M-%S')+'.csv')
 
     tester.test(
         scenario_name=args.scenario,
@@ -43,7 +46,9 @@ def main():
         epsilon_decay=args.epsilon_decay,
         epsilon_min=args.epsilon_min,
         log_transitions=args.log_transitions,
-        log_filepath=log_filepath
+        log_folderpath=log_filepath,
+        file_prefix = file_prefix,
+        steps=args.steps
     )
 
 

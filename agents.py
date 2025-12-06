@@ -117,7 +117,7 @@ class BaseAgent:
 
     def get_state(self):
         """Return current environment state as tuple."""
-        return (self.env.x, self.env.y, self.env.theta, self.env.k)
+        return (self.env.x, self.env.y, self.env.theta, self.env.k, self.env.d)
 
     def choose_action(self, state, training=True):
         """Epsilon-greedy action selection."""
@@ -129,7 +129,7 @@ class BaseAgent:
         """Decay epsilon after each episode."""
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
-    def train(self, n_episodes=500, eval_every=100, verbose=False):
+    def train(self, n_episodes=500, eval_every=100, verbose=False, steps=2000):
         """Generic training loop for any agent with train_episode()."""
         print("="*80)
         print(f"Training {self.__class__.__name__}")
@@ -140,7 +140,7 @@ class BaseAgent:
         self.coverage_history = []
 
         for ep in range(n_episodes):
-            reward, length, coverage, stuck_count = self.train_episode(verbose=verbose and ep % 200 == 0)
+            reward, length, coverage, stuck_count = self.train_episode(max_steps = steps, verbose=verbose and ep % 200 == 0)
             self.episode_rewards.append(reward)
             self.episode_lengths.append(length)
             self.coverage_history.append(coverage)

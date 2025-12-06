@@ -193,27 +193,44 @@ def render_map(env, outpath, title="Map"):
     plt.close()
 
 
-def render_heatmap(env, heat, outpath, title="Exploration heatmap"):
+def render_heatmap(env, heat, outpath, title="Exploration heatmap", vmax=None):
     H, W = heat.shape
-    fig = plt.figure(figsize=(6, 6))
-    ax = fig.add_subplot(111)
-    # base map
+    # Create side-by-side figure: left = heatmap overlaid on map, right = map only
+    fig, (ax_heat, ax_map) = plt.subplots(1, 2, figsize=(14, 6))
+
+    # Colormap for map (0=free white, 1=hard black, 2=soft brown)
     cmap_map = colors.ListedColormap(["#ffffff", "#444444", "#ffcc99"])
     norm_map = colors.BoundaryNorm([0, 1, 2, 3], cmap_map.N)
-    ax.imshow(env.map, origin="lower", cmap=cmap_map, norm=norm_map)
-    hm = ax.imshow(heat, origin="lower", cmap="magma", alpha=0.8)
-    plt.colorbar(hm, ax=ax, fraction=0.046, pad=0.04)
-    ax.set_xticks(np.arange(-0.5, W, 1.0))
-    ax.set_yticks(np.arange(-0.5, H, 1.0))
-    ax.set_xticklabels([])
-    ax.set_yticklabels([])
-    ax.grid(which="both", color="gray", linewidth=0.5, linestyle="--", alpha=0.3)
-    ax.set_xlim(-0.5, W - 0.5)
-    ax.set_ylim(-0.5, H - 0.5)
-    ax.set_aspect("equal")
-    plt.title(title)
+
+    # LEFT: Heatmap overlaid on map
+    ax_heat.imshow(env.map, origin="lower", cmap=cmap_map, norm=norm_map)
+    hm = ax_heat.imshow(heat, origin="lower", cmap="magma", alpha=0.7, vmax=vmax)
+    plt.colorbar(hm, ax=ax_heat, fraction=0.046, pad=0.04, label="Visit Count")
+    ax_heat.set_xticks(np.arange(-0.5, W, 1.0))
+    ax_heat.set_yticks(np.arange(-0.5, H, 1.0))
+    ax_heat.set_xticklabels([])
+    ax_heat.set_yticklabels([])
+    ax_heat.grid(which="both", color="gray", linewidth=0.5, linestyle="--", alpha=0.3)
+    ax_heat.set_xlim(-0.5, W - 0.5)
+    ax_heat.set_ylim(-0.5, H - 0.5)
+    ax_heat.set_aspect("equal")
+    ax_heat.set_title("Exploration Heatmap + Obstacles")
+
+    # RIGHT: Map only (no heatmap overlay) for reference
+    ax_map.imshow(env.map, origin="lower", cmap=cmap_map, norm=norm_map)
+    ax_map.set_xticks(np.arange(-0.5, W, 1.0))
+    ax_map.set_yticks(np.arange(-0.5, H, 1.0))
+    ax_map.set_xticklabels([])
+    ax_map.set_yticklabels([])
+    ax_map.grid(which="both", color="gray", linewidth=0.5, linestyle="--", alpha=0.3)
+    ax_map.set_xlim(-0.5, W - 0.5)
+    ax_map.set_ylim(-0.5, H - 0.5)
+    ax_map.set_aspect("equal")
+    ax_map.set_title("Map Reference\n(White=Free, Black=Hard, Brown=Soft)")
+
+    fig.suptitle(title, fontsize=14, fontweight="bold")
     plt.tight_layout()
-    plt.savefig(outpath)
+    plt.savefig(outpath, dpi=150, bbox_inches="tight")
     plt.close()
 
 

@@ -35,4 +35,5 @@ python main.py --method sarsa --scenario single_soft_center --episodes 500 --log
 
 ## Running plots
 python compare_methods.py
-Hardcode csv file names in the python file so adjust as needed
+
+Hardcoded csv file names in above python file so adjust as needed after running above commands for sarsa and qlearning

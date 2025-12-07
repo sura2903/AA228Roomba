@@ -1,0 +1,2 @@
+map,csv,episodes,mean_reward,mean_coverage,mean_entropy
+scattered_soft_seed123,./scenario_results\scattered_soft_seed123\sarsa\2025-12-06-17-16-38\transition_eval.csv,1,2492.231463309641,0.6,5.199852566199523

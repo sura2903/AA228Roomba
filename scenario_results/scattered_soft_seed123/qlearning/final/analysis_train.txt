@@ -1,0 +1,70 @@
+
+================================================================================
+TRANSITION DATA SUMMARY
+================================================================================
+
+Total transitions: 1000000
+Episodes: 1000
+Unique states visited: 3434
+
+Reward Statistics:
+  Mean:      0.755
+  Std:       1.827
+  Min:      -6.959
+  Max:       3.990
+  Median:    0.561
+
+Action Distribution:
+  Forward   : 433960 ( 43.4%)
+  Backward  : 226214 ( 22.6%)
+  TurnLeft  : 177323 ( 17.7%)
+  TurnRight : 162503 ( 16.3%)
+
+Stuck Depth Distribution:
+  k=0: 872785 ( 87.3%)
+  k=1:  43311 (  4.3%)
+  k=2:  18892 (  1.9%)
+  k=3:  65012 (  6.5%)
+
+
+================================================================================
+REWARD BY STUCK DEPTH
+================================================================================
+
+k=0 (n=872785):
+  Mean reward:   1.089
+  Std reward:    1.476
+
+k=1 (n=43311):
+  Mean reward:  -2.926
+  Std reward:    2.862
+
+k=2 (n=18892):
+  Mean reward:  -1.351
+  Std reward:    1.660
+
+k=3 (n=65012):
+  Mean reward:  -0.668
+  Std reward:    1.413
+
+
+================================================================================
+REWARD BY ACTION
+================================================================================
+
+Forward (n=433960):
+  Mean reward:   1.339
+  Std reward:    1.874
+
+Backward (n=226214):
+  Mean reward:   0.472
+  Std reward:    1.958
+
+TurnLeft (n=177323):
+  Mean reward:   0.215
+  Std reward:    1.393
+
+TurnRight (n=162503):
+  Mean reward:   0.176
+  Std reward:    1.424
+

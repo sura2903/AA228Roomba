@@ -215,7 +215,11 @@ class ScenarioTester:
         log_transitions=True,
         save_dir="./",
         steps=2000,
-        visit_reward_lambda=0.07
+        visit_reward_lambda=0.07,
+        w_explore = 1.0,
+        w_collision = 1.0,
+        w_stuck = 1.0,
+        eval_steps = 1000
     ):
         
         log_filepath = os.path.join(save_dir, "transition_train.csv")
@@ -240,7 +244,8 @@ class ScenarioTester:
             coverage_goal=0.85,
             max_steps=7000,
             seed=42,
-            visit_reward_lambda = visit_reward_lambda
+            visit_reward_lambda = visit_reward_lambda,
+            w_explore=w_explore, w_stuck=w_stuck, w_collision=w_collision
         )
 
         # choose method
@@ -272,7 +277,7 @@ class ScenarioTester:
             json.dump(qtable, f)
 
 
-        episode_reward = agent.eval(steps=steps)
+        episode_reward = agent.eval(steps=eval_steps)
         print("FINAL REWARD: ", episode_reward)
 
         

@@ -1,0 +1,16 @@
+method=sarsa
+scenario=mixed_obstacles_seed42
+episodes=1000
+steps=1000
+alpha=0.1
+gamma=0.95
+visit_reward_lambda=0.07
+w_explore=4.0
+w_stuck=1.0
+w_collision=2.0
+eval_steps=3000
+epsilon=1.0
+epsilon_decay=0.995
+epsilon_min=0.01
+log_transitions=True
+log_folder=./scenario_results

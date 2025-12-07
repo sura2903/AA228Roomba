@@ -1,0 +1,2 @@
+map,csv,episodes,mean_reward,mean_coverage,mean_entropy
+mixed_obstacles_seed42,./scenario_results\mixed_obstacles_seed42\sarsa\2025-12-06-22-21-45\transition_eval.csv,1,2682.4217774622675,0.7513368983957219,5.237335900076127

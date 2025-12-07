@@ -32,3 +32,7 @@ python main.py --method sarsa --scenario single_soft_center --episodes 500 --log
 --method takes in 'sarsa' or 'qlearning'
 --scenario takes any of the pre-defined scenarios in /test_scenarios
 --log-transitions logs the result into csv files
+
+## Running plots
+python compare_methods.py
+Hardcode csv file names in the python file so adjust as needed

@@ -66,6 +66,9 @@ class RoombaSoftPOMDPEnv(gym.Env):
         coverage_goal=0.95,
         max_steps=1000,
         seed=None,
+        w_explore = 1.0,
+        w_stuck = 1.0,
+        w_collision = 1.0
     ):
         super().__init__()
 
@@ -117,6 +120,7 @@ class RoombaSoftPOMDPEnv(gym.Env):
         self.exit_mode = exit_mode
         assert self.exit_mode in ("reset", "decrement")
         self.K = K
+        self.k_max = K
         self.p_intended = p_intended
         self.p_adj = p_adj
         self.p_stay = p_stay
@@ -139,9 +143,9 @@ class RoombaSoftPOMDPEnv(gym.Env):
         print("abhat visit_reward_lambda: ", self.visit_reward_lambda)
 
         # Hparams (can be tuned later if necessary)
-        self.w_explore = 1.0
-        self.w_stuck = 1.0
-        self.w_collision = 1.0
+        self.w_explore = w_explore
+        self.w_stuck = w_stuck
+        self.w_collision = w_collision
 
         # termination
         self.coverage_goal = coverage_goal
@@ -334,14 +338,16 @@ class RoombaSoftPOMDPEnv(gym.Env):
 
         # exploration reward (encourage visiting new cells), measured on next cell
         visits = self.visit_counts[ny, nx]
-        explore_reward = self.visit_reward_initial * (np.exp(self.visit_reward_lambda * visits) - 1.0)
+        explore_reward = 1/visits
+        # explore_reward = self.visit_reward_initial * (np.exp(self.visit_reward_lambda * visits) - 1.0)
         # explore_reward = self.visit_reward_initial * np.exp(-self.visit_reward_lambda * visits)
-        r -= self.w_explore * explore_reward
+        r += self.w_explore * explore_reward
         # print("Exploration: ",self.w_explore * explore_reward)
 
         # stuck penalty (based on next hidden depth)
         if nk > 0:
-            stuck_penalty = self.stuck_penalty_alpha * (np.exp(self.stuck_penalty_beta * nk) - 1.0)
+            stuck_penalty = self.k_max/nk
+            # stuck_penalty = self.stuck_penalty_alpha * (np.exp(self.stuck_penalty_beta * nk) - 1.0)
             r -= self.w_stuck * stuck_penalty
             self.stuck_count+=1
             # print("Stuck: ",-self.w_stuck * stuck_penalty)
@@ -355,7 +361,7 @@ class RoombaSoftPOMDPEnv(gym.Env):
             intended_y = py + intended_dy
             # if intended cell is hard and agent didn't change cells, penalize
             if self.is_hard(intended_x, intended_y) and (nx == px and ny == py):
-                r -= self.w_collision * max(self.collision_penalty, abs(r))
+                r -= self.w_collision * 1.0
                 # print("Collision: ", -self.w_collision * self.collision_penalty)
         # print("final ", r)
         return r

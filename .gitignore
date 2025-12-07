@@ -211,3 +211,13 @@ __marimo__/
 render_frames/
 *.png
 *.mp4
+
+
+scenario_results/four_rooms/qlearning/final/transition_train.csv
+scenario_results/four_rooms/qlearning/final/q_table.json
+scenario_results/four_rooms/sarsa/final/q_table.json
+scenario_results/four_rooms/sarsa/final/transition_train.csv
+scenario_results/scattered_soft_seed123/qlearning/final/q_table.json
+scenario_results/scattered_soft_seed123/qlearning/final/transition_train.csv
+scenario_results/scattered_soft_seed123/sarsa/final/q_table.json
+scenario_results/scattered_soft_seed123/sarsa/final/transition_train.csv

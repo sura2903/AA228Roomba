@@ -19,6 +19,11 @@ def parse_args():
 
     parser.add_argument("--visit_reward_lambda", type=float, default=0.07)
 
+    parser.add_argument("--w_explore", type=float, default=1.0)
+    parser.add_argument("--w_stuck", type=float, default=1.0)
+    parser.add_argument("--w_collision", type=float, default=1.0)
+
+    parser.add_argument("--eval_steps", type=int, default=1000)
 
     parser.add_argument("--epsilon", type=float, default=1.0)
     parser.add_argument("--epsilon-decay", type=float, default=0.995)
@@ -54,7 +59,11 @@ def main():
         log_transitions=args.log_transitions,
         save_dir=save_dir,
         steps=args.steps,
-        visit_reward_lambda = args.visit_reward_lambda
+        visit_reward_lambda = args.visit_reward_lambda,
+        w_explore=args.w_explore,
+        w_stuck=args.w_stuck,
+        w_collision=args.w_collision,
+        eval_steps = args.eval_steps
     )
 
     # Save h params

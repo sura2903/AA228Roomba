@@ -209,7 +209,7 @@ __marimo__/
 
 # Ignore generated visualization frames and videos
 render_frames/
-*.png
+# *.png
 *.mp4
 
 
